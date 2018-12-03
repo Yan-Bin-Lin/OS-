@@ -7,7 +7,8 @@ namespace program
     class RW
     {
         //global variable
-        public static class global {
+        public static class global
+        {
             public enum StatusType { wait, run, done };
             public static int turn_writer;// how much time a turn of writer
             public static int turn_reader;// how much time a turn of reader
@@ -19,6 +20,8 @@ namespace program
             public static int max_int;//the max number of int 
             public static Mutex mutexR = new Mutex();//use mutex to change wait count
             public static Mutex mutexW = new Mutex();//use mutex to change wait count
+            public static int WorkTimeR;
+            public static int WorktimeW;
         }
 
         //the basic attribute and method of reader and writer
@@ -116,7 +119,8 @@ namespace program
 
             //constructor
             public writer(int work_time, int ID, string word)
-                : base(work_time, ID) {
+                : base(work_time, ID)
+            {
                 this.word = word;
             }
 
@@ -169,6 +173,8 @@ namespace program
                 check_pause();//system call pause
 
                 buffer = String.Copy(word);
+                Console.WriteLine(ID.ToString() + " write ' " + word + " '");
+                Console.WriteLine("Now, the buffer is ' " + buffer + " '");
 
                 Console.WriteLine(ID.ToString() + " finsh writing");
             }
@@ -192,7 +198,7 @@ namespace program
                 this.start_index = 0;
                 this.unfinished_number = 0;
                 this.readers = new List<reader>();
-                this.work_time = 100;
+                this.work_time = global.WorkTimeR;
             }
 
             //add one reader
@@ -216,18 +222,22 @@ namespace program
                     }
                     start_index = IDcount;
                 }
-                else
+                else if (start_index > IDcount)
                 {
                     unfinished_number += global.max_int - start_index + 1 + IDcount;
                     for (int i = start_index; i <= global.max_int; i++)
                     {
                         readers[i].start();
                     }
-                    for (int i = 0;i < IDcount;i ++)
+                    for (int i = 0; i < IDcount; i++)
                     {
                         readers[i].start();
                     }
                     start_index = IDcount;
+                }
+                else
+                {
+                    return;
                 }
             }
 
@@ -247,10 +257,13 @@ namespace program
                 return number;
             }
 
-            //restart
             public void clear()
             {
                 readers.Clear();
+            }
+
+            public void restart()
+            {
                 IDcount = 0;
                 start_index = 0;
                 unfinished_number = 0;
@@ -276,13 +289,13 @@ namespace program
                 this.start_index = 0;
                 this.unfinished_number = 0;
                 this.writers = new List<writer>();
-                this.work_time = 100;
-                this.word = "someone write here";
+                this.work_time = global.WorktimeW;
             }
 
             //add one writer
             public void add()
             {
+                word = IDcount.ToString() + " write here";
                 writers.Add(new writer(work_time, IDcount, word));
                 IDcount = CheckAndAdd(IDcount);
             }
@@ -302,7 +315,7 @@ namespace program
                     start_index = IDcount;
                     //Console.WriteLine("the count of writer to start is " + IDcount.ToString());
                 }
-                else
+                else if (start_index > IDcount)
                 {
                     unfinished_number += global.max_int - start_index + 1 + IDcount;
                     for (int i = start_index; i <= global.max_int; i++)
@@ -314,6 +327,10 @@ namespace program
                         writers[i].start();
                     }
                     start_index = IDcount;
+                }
+                else
+                {
+                    return;
                 }
             }
 
@@ -335,10 +352,13 @@ namespace program
                 return number;
             }
 
-            //restart
             public void clear()
             {
                 writers.Clear();
+            }
+            
+            public void restart()
+            {
                 IDcount = 0;
                 start_index = 0;
                 unfinished_number = 0;
@@ -369,6 +389,86 @@ namespace program
             return num == global.max_int ? 0 : num + 1;
         }
 
+        public class poisson
+        {
+
+            Random ran = new Random();
+            //VAL會與柏松分布的FUNC所計算出來的值比較大小
+            double val;
+
+            //給予VAL值
+            public poisson()
+            {
+                getnext();
+            }
+
+            //讓VAL得到一個(>0.0) && (<1.0) 的值
+            private void getnext()
+            {
+                for (val = ran.NextDouble(); val == 0;) val = ran.NextDouble();
+            }
+
+            //計算柏松分布在k=times時的機率
+            private double pro_of_poi(double lamda, double times)
+            {
+
+                double pro = Math.Pow(Math.E, ((-1) * lamda));
+
+                for (int i = 0; i < times; i++)
+                {
+                    pro /= (i + 1);
+                    pro *= lamda;
+                }
+                return pro;
+            }
+
+            //回傳在k=times時，隨機變數 >= P(x=times)
+            public bool is_new_product(double lamda, double times)
+            {
+                getnext();
+
+                return val >= pro_of_poi(lamda, times);
+            }
+        }
+
+        public static void ar()
+        {
+            DateTime time_start = new DateTime(DateTime.MinValue.Ticks);
+            Readers r = new Readers();
+            poisson rpo = new poisson();
+            double count = 0;
+            Console.WriteLine("readers call start()");
+            while (true)
+            {
+                Thread.Sleep(17);
+                if (rpo.is_new_product(DateTime.Now.ToOADate(), count))
+                {
+                    r.add();
+                    count++;
+                }
+                r.start();
+            }
+        }
+
+        public static void aw()
+        {
+            DateTime time_start = new DateTime(DateTime.MinValue.Ticks);
+            Writers w = new Writers();
+            poisson wpo = new poisson();
+            double count = 0;
+            Console.WriteLine("writers call start()");
+            while (true)
+            {
+                Thread.Sleep(17);
+                if (wpo.is_new_product(DateTime.Now.ToOADate(), count))
+                {
+                    w.add();
+                    count++;
+                }
+                w.start();
+            }
+        }
+
         static void Main()
         {
             //innitial
@@ -377,57 +477,23 @@ namespace program
             global.done_writer = 0;
             global.next_writer = 0;
             global.turn_reader = 1000;
-            global.turn_writer = 2000;
-            global.max_int = int.MaxValue;
+            global.turn_writer = 20000;
+            global.max_int = 100;//int.MaxValue;
+            global.WorkTimeR = 100;
+            global.WorktimeW = 100;
 
-            Readers r = new Readers();
-            for(int i = 0;i < 10;i ++)
-            {
-                r.work_time = (11 - i) * 100;
-                r.add();
-            }
-
-            Writers w = new Writers();
-            for (int i = 0; i < 10; i++)
-            {
-                w.work_time = (1 + i) * 100;
-                w.word = i.ToString() + " write here";
-                w.add();
-            }
 
             Thread _switch = new Thread(change);
             _switch.Start();
 
-            Console.WriteLine("readers call start()");
-            r.start();
-            Console.WriteLine("writers call start()");
-            w.start();
-            Console.WriteLine("----------------------------------------------------------------------------- the unfinished numer of reader is " + r.get_unfinished_number().ToString());
-            Console.WriteLine("----------------------------------------------------------------------------- the unfinished numer of writer is " + w.get_unfinished_number().ToString());
-            Console.WriteLine("readers call clear()");
-            r.clear();
-            Console.WriteLine("writers call clear()");
-            w.clear();
-            for (int i = 0; i < 10; i++)
-            {
-                r.work_time = (11 - i) * 100;
-                r.add();
-            }
-            for (int i = 0; i < 10; i++)
-            {
-                w.work_time = (i + 1) * 100;
-                w.word = i.ToString() + " write here";
-                w.add();
-            }
-            Console.WriteLine("writers call start()");
-            w.start();
-            Thread.Sleep(1000);
-            Console.WriteLine("----------------------------------------------------------------------------- the unfinished numer of writer is " + w.get_unfinished_number().ToString());
-            Console.WriteLine("readers call start()");
-            r.start();
-            Thread.Sleep(1000);
-            Console.WriteLine("----------------------------------------------------------------------------- the unfinished numer of reader is " + r.get_unfinished_number().ToString());
-        }
+            Thread rs = new Thread(ar);
+            rs.Start();
 
+            Thread ws = new Thread(aw);
+            ws.Start();
+
+            //Console.WriteLine("----------------------------------------------------------------------------- the unfinished numer of reader is " + r.get_unfinished_number().ToString());
+            //Console.WriteLine("----------------------------------------------------------------------------- the unfinished numer of writer is " + w.get_unfinished_number().ToString());
+        }
     }
 }
