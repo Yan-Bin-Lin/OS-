@@ -1,0 +1,63 @@
+public class keybelong
+{
+    //0=reader , 1=writer
+    private bool belong;
+    private double reader_time_min = 100.0 , writer_time_min = 300.0 , work_time = 500.0 ,  buffer = 1000.0;
+    private double writer_count_max = 1000.0 ,  writer_do , writer_do_max = 10.0 ;
+
+    public keybelong()
+    {
+        belong = false;
+        writer_do = 0.0;
+
+    }
+
+    public void fix_rtmin(double value)
+    {
+        if(value>0.0) reader_time_min = value;
+    }
+
+    public void fix_wtmin(double value)
+    {
+        if (value > 0.0) writer_time_min = value;
+    }
+
+    public void fix_work_time(double basic)
+    {
+        if (basic > 0.0) work_time = basic;
+    }
+
+    public void fix_writer_count_max(double value) {
+        if (value > 0.0) writer_count_max = value;
+    }
+
+    public double gettime(int reader_count, int writer_count)
+    {   
+
+        double re ;
+
+        if (writer_do >= writer_do_max) {
+            belong = false;
+            re = work_time + buffer;
+            if (re < reader_time_min) re = reader_time_min;
+            writer_do = 0.0;
+        }
+
+        else if (writer_count >= writer_count_max || writer_count > reader_count)
+        {
+            belong = true;
+            re = (writer_count * work_time) + buffer;
+            if (re < writer_time_min) re = writer_time_min;
+            writer_do++;
+        }
+
+        else {
+            belong = false;
+            re =  work_time + buffer;
+            if (re < reader_time_min) re = reader_time_min;
+            writer_do = 0.0 ;
+        }       
+       
+        return re;
+    }
+}
